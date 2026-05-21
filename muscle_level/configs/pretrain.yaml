@@ -1,0 +1,34 @@
+exp_name: 'BimodalMAE_backbone'
+
+# Data
+patch_size: 24
+mask_ratio_t: 0.5
+mask_ratio_f: 0.5
+
+# Architecture
+apply_asb: True
+dim_tokens_enc: 192
+num_heads_enc: 3
+depth_enc: 4
+
+dim_tokens_dec: 256
+num_heads_dec: 8
+depth_dec: 3
+
+mlp_ratio: 4.0
+drop_path_rate: 0.0
+attn_drop_rate: 0.0
+drop_rate: 0.0
+
+# Train
+epochs: 200
+opt: adamw
+lr: 1e-4
+clip_grad: 1.0
+warmup_lr: 1e-6
+warmup_epochs: 20
+weight_decay: 0.05
+batch_size: 1024
+
+loss_weight_t: 1.0
+loss_weight_f: 1.0

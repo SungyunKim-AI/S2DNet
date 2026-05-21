@@ -1,0 +1,9 @@
+output_dir: 'outputs/muscle_level/BimodalMAE_OvR/ensemble'
+model_nl_vs_others_path: ./outputs/muscle_level/BimodalMAE_OvR/nl_vs_others/ckpts/BMIRC_022.pth
+model_n_vs_others_path: ./outputs/muscle_level/BimodalMAE_OvR/n_vs_others/ckpts/BMIRC_017.pth
+model_m_vs_others_path: ./outputs/muscle_level/BimodalMAE_OvR/m_vs_others/ckpts/BMIRC_022.pth
+
+# Data
+bag_size: 50
+denorm: True
+batch_size: 32

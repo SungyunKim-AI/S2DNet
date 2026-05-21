@@ -1,0 +1,19 @@
+output_dir: 'outputs/muscle_level/BimodalMAE_OvR'
+pretrained_config_path: './outputs/pretrain/BimodalMAE_backbone/config.yaml'
+pretrained_weights_path: './outputs/pretrain/BimodalMAE_backbone/ckpts/backbone_199.pth'
+
+# Data
+num_classes: 2
+denorm: True
+encoder_freeze: True
+
+num_heads_clf: 4
+attn_drop_rate_clf: 0.0
+
+# Train
+epochs: 30
+opt: adamw
+lr: 0.001  # 0.001 for ft and 0.005 for lp
+warmup_epochs: 5
+batch_size: 32
+clip_grad: 1.0
