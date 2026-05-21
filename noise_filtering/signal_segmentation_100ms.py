@@ -81,7 +81,7 @@ def save_segment(output_file, muscle_data, segment_duration=0.1):
 
 @ray.remote
 def process_single_objectid(objectid, meta_data, save_dir):
-    """단일 objectid를 처리하는 함수"""
+    """Process a single objectid"""
     try:
         trace_table = meta_data[meta_data['objectid']==objectid]
         trace_table = trace_table.sort_values('trace_index')
@@ -135,7 +135,7 @@ def main(sample_size):
     print("objectid num:", len(objectid_list))
 
     if sample_size is not None:
-        # sample_size가 전체 objectid 개수보다 크면 전체를 사용
+        # If sample_size exceeds total number of objectids, use all
         print(f"Selecting {sample_size} random samples...")
         actual_sample_size = min(sample_size, len(objectid_list))
         oids = np.random.choice(objectid_list, size=actual_sample_size, replace=False)

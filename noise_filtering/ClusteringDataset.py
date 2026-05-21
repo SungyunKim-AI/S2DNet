@@ -81,11 +81,11 @@ class ClusteringDataset(Dataset):
         return signal
 
     def get_file_groups(self):
-        """file_path 기준으로 그룹화된 데이터를 반환합니다."""
+        """Return data grouped by file_path."""
         return self.table.groupby("file_path")
 
     def get_segments_for_file(self, file_path, file_data):
-        """특정 파일의 모든 세그먼트 데이터를 한 번에 로드합니다."""
+        """Load all segment data for a specific file at once."""
         segments_data = []
         
         with h5py.File(file_path, 'r') as f:

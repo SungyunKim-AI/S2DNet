@@ -1,4 +1,4 @@
-# OpenBLAS 스레드 제한 설정
+# Limit OpenBLAS thread count
 import os
 os.environ['OPENBLAS_NUM_THREADS'] = '4'
 os.environ['MKL_NUM_THREADS'] = '4'
@@ -16,13 +16,13 @@ from pyspark.ml.evaluation import ClusteringEvaluator
 from clustering_spark import perform_kmeans_clustering
 
 def load_features(spark, cache_dir, clustering_result_path=None, target_clusters=None):
-    """캐시된 피처를 Spark DataFrame으로 로드"""
+    """Load cached features as a Spark DataFrame"""
     features_parquet = Path(cache_dir) / "extracted_features.parquet"
     if features_parquet.exists():
-        # Parquet 파일을 Spark DataFrame으로 직접 읽기
+        # Read Parquet file directly as a Spark DataFrame
         df = spark.read.parquet(str(features_parquet))
         
-        # 클러스터링 결과가 주어진 경우 필터링
+        # Filter by clustering result if provided
         if clustering_result_path and target_clusters is not None:
             clustering_result = spark.read.parquet(str(clustering_result_path))
             if 'prediction' in df.columns:
@@ -32,9 +32,9 @@ def load_features(spark, cache_dir, clustering_result_path=None, target_clusters
             df = df.drop('prediction')
             print(f"Filtered to clusters {target_clusters}: {df.count()} records")
         
-        # feature 컬럼들 추출 (segmentid 제외)
+        # Extract feature columns (excluding segmentid)
         feature_cols = [col for col in df.columns if col.startswith('feature_')]
-        feature_cols.sort()  # feature_0, feature_1, ... 순서로 정렬
+        feature_cols.sort()  # Sort in order: feature_0, feature_1, ...
         
         print(f"Loaded {df.count()} features")
         print(f"Feature columns: {feature_cols}")
@@ -45,18 +45,18 @@ def load_features(spark, cache_dir, clustering_result_path=None, target_clusters
 
 
 def find_elbow_point(inertias, k_range):
-    """엘보우 포인트를 찾는 함수"""
-    # 이차 미분을 계산하여 급격한 변화 지점 찾기
+    """Find the elbow point"""
+    # Find the point of steepest change using the second derivative
     if len(inertias) < 3:
         return k_range[1] if len(k_range) > 1 else k_range[0]
     
-    # 이차 미분 계산
+    # Compute second derivative
     second_derivatives = []
     for i in range(1, len(inertias) - 1):
         second_deriv = inertias[i+1] - 2*inertias[i] + inertias[i-1]
         second_derivatives.append(second_deriv)
     
-    # 가장 큰 이차 미분값의 인덱스 찾기
+    # Find the index of the largest second derivative value
     max_second_deriv_idx = np.argmax(second_derivatives)
     elbow_k = k_range[max_second_deriv_idx + 1]  # +1 because we start from index 1
     
@@ -64,31 +64,31 @@ def find_elbow_point(inertias, k_range):
 
 
 def plot_elbow_curve(k_range, inertias, silhouette_scores, output_dir):
-    """엘보우 커브를 플롯하고 저장"""
+    """Plot and save the elbow curve"""
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
-    
-    # Inertia (Within-cluster sum of squares) 플롯
+
+    # Inertia (Within-cluster sum of squares) plot
     ax1.plot(k_range, inertias, 'bo-', linewidth=2, markersize=8)
     ax1.set_xlabel('Number of Clusters (k)')
     ax1.set_ylabel('Inertia')
     ax1.set_title('Elbow Method for Optimal k')
     ax1.grid(True, alpha=0.3)
     
-    # 엘보우 포인트 표시
+    # Mark the elbow point
     elbow_k = find_elbow_point(inertias, k_range)
     elbow_idx = k_range.index(elbow_k)
     ax1.axvline(x=elbow_k, color='red', linestyle='--', alpha=0.7, 
                 label=f'Elbow point: k={elbow_k}')
     ax1.legend()
     
-    # Silhouette Score 플롯
+    # Silhouette Score plot
     ax2.plot(k_range, silhouette_scores, 'go-', linewidth=2, markersize=8)
     ax2.set_xlabel('Number of Clusters (k)')
     ax2.set_ylabel('Silhouette Score')
     ax2.set_title('Silhouette Score vs Number of Clusters')
     ax2.grid(True, alpha=0.3)
     
-    # 최고 실루엣 스코어 지점 표시
+    # Mark the best silhouette score point
     best_silhouette_idx = np.argmax(silhouette_scores)
     best_silhouette_k = k_range[best_silhouette_idx]
     ax2.axvline(x=best_silhouette_k, color='red', linestyle='--', alpha=0.7,
@@ -97,7 +97,7 @@ def plot_elbow_curve(k_range, inertias, silhouette_scores, output_dir):
     
     plt.tight_layout()
     
-    # 저장
+    # Save
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
     plt.savefig(output_path / "elbow_curve.png", dpi=300, bbox_inches='tight')
@@ -107,7 +107,7 @@ def plot_elbow_curve(k_range, inertias, silhouette_scores, output_dir):
 
 
 def find_optimal_clusters(spark, df, k_range, method='kmeans', output_dir="./outputs"):
-    """최적의 클러스터 개수를 찾는 함수"""
+    """Find the optimal number of clusters"""
     print(f"Finding optimal number of clusters using {method}...")
     print(f"Testing k values: {k_range}")
     
@@ -126,10 +126,10 @@ def find_optimal_clusters(spark, df, k_range, method='kmeans', output_dir="./out
             gmm = GaussianMixture(featuresCol="features", k=k, seed=42)
             model = gmm.fit(df)
             predictions = model.transform(df)
-            # GMM의 경우 inertia 대신 negative log likelihood 사용
+            # Use negative log likelihood instead of inertia for GMM
             inertia = -model.summary.logLikelihood
         
-        # Silhouette score 계산
+        # Compute silhouette score
         evaluator = ClusteringEvaluator()
         silhouette = evaluator.evaluate(predictions)
         
@@ -138,14 +138,14 @@ def find_optimal_clusters(spark, df, k_range, method='kmeans', output_dir="./out
         
         print(f"  k={k}: Inertia={inertia:.4f}, Silhouette={silhouette:.4f}")
     
-    # 엘보우 커브 플롯 및 최적 k 찾기
+    # Plot elbow curve and find optimal k
     elbow_k, best_silhouette_k = plot_elbow_curve(k_range, inertias, silhouette_scores, output_dir)
     
     print(f"\nResults:")
     print(f"Elbow method suggests k={elbow_k}")
     print(f"Best silhouette score at k={best_silhouette_k}")
     
-    # 결과를 CSV로 저장
+    # Save results as CSV
     results_df = spark.createDataFrame([
         (k, inertia, silhouette) for k, inertia, silhouette in zip(k_range, inertias, silhouette_scores)
     ], ["k", "inertia", "silhouette_score"])
@@ -159,28 +159,28 @@ def find_optimal_clusters(spark, df, k_range, method='kmeans', output_dir="./out
 
 @click.command()
 @click.option('--cache-dir', type=str, default='./features')
-@click.option('--k-min', type=int, default=2, help='테스트할 최소 클러스터 개수')
-@click.option('--k-max', type=int, default=10, help='테스트할 최대 클러스터 개수')
-@click.option('--sample-size', type=int, default=None, help='데이터 샘플링 크기 (None이면 전체 사용)')
-@click.option('--auto-k', is_flag=True, help='엘보우 메서드로 최적 k 자동 선택')
-@click.option('--clustering-result-path', type=str, default="./outputs/step2_kmeans/clustering_result.parquet", help='기존 클러스터링 결과 parquet 파일 경로')
-@click.option('--target-clusters', type=str, default="0,3", help='사용할 특정 클러스터 번호들 (쉼표로 구분, 예: 0,1,2)')
+@click.option('--k-min', type=int, default=2, help='Minimum number of clusters to test')
+@click.option('--k-max', type=int, default=10, help='Maximum number of clusters to test')
+@click.option('--sample-size', type=int, default=None, help='Data sampling size (None uses all data)')
+@click.option('--auto-k', is_flag=True, help='Automatically select optimal k using elbow method')
+@click.option('--clustering-result-path', type=str, default="./outputs/step2_kmeans/clustering_result.parquet", help='Path to existing clustering result parquet file')
+@click.option('--target-clusters', type=str, default="0,3", help='Specific cluster IDs to use (comma-separated, e.g. 0,1,2)')
 def main(cache_dir, k_min, k_max, sample_size, auto_k, clustering_result_path, target_clusters):
-    """Spark를 이용한 대규모 EMG 데이터 클러스터링"""
+    """Large-scale EMG data clustering using Spark"""
     random.seed(42)
     np.random.seed(42)
     os.environ['PYTHONHASHSEED'] = str(42)
     
-    # target_clusters 문자열을 리스트로 변환
+    # Convert target_clusters string to list
     if target_clusters:
         target_clusters = [int(x.strip()) for x in target_clusters.split(',')]
     
-    # 클러스터링 결과 경로가 주어진 경우 target_clusters도 필요
+    # target_clusters is required when clustering result path is provided
     if clustering_result_path and target_clusters is None:
-        print("Error: clustering-result-path가 주어진 경우 target-clusters도 지정해야 합니다.")
+        print("Error: target-clusters must be specified when clustering-result-path is provided.")
         return
     
-    # Spark 세션 생성
+    # Create Spark session
     spark = SparkSession.builder \
         .appName("Clustering") \
         .config("spark.sql.adaptive.enabled", "true") \
@@ -198,25 +198,25 @@ def main(cache_dir, k_min, k_max, sample_size, auto_k, clustering_result_path, t
             print("Failed to load features")
             return
         
-        # 샘플링 (선택사항)
+        # Sampling (optional)
         if sample_size and sample_size < df.count():
             df = df.sample(fraction=sample_size/df.count(), seed=42)
             print(f"Sampled to {df.count()} records")
         
-        # 벡터 어셈블러로 피처 결합
+        # Combine features using VectorAssembler
         assembler = VectorAssembler(inputCols=feature_cols, outputCol="features")
         df_assembled = assembler.transform(df)
         
         k_range = list(range(k_min, k_max + 1))
         
         if auto_k:
-            print("\n=== K-means 최적 클러스터 개수 찾기 ===")
+            print("\n=== Finding optimal number of K-means clusters ===")
             elbow_k_kmeans, best_silhouette_k_kmeans, _, _ = find_optimal_clusters(
                 spark, df_assembled, k_range, 'kmeans', "./outputs/kmeans"
             )
-            
-            # 최적 k로 최종 클러스터링 수행
-            print(f"\n최적 k={elbow_k_kmeans}로 K-means 클러스터링 수행...")
+
+            # Perform final clustering with optimal k
+            print(f"\nPerforming K-means clustering with optimal k={elbow_k_kmeans}...")
             perform_kmeans_clustering(df_assembled, elbow_k_kmeans, "./outputs/kmeans")
             
         else:

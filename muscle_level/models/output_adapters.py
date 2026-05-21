@@ -83,7 +83,7 @@ class LinearOutputAdapter(nn.Module):
 
 class MILOutputAdapter(nn.Module):
     """
-    MIL 집계와 분류를 수행하는 Output Adapter
+    Output Adapter for MIL aggregation and classification
     
     :param num_classes: Number of classes
     :param dim_tokens_enc: Dimension of tokens from the encoder
@@ -118,7 +118,7 @@ class MILOutputAdapter(nn.Module):
         """
         self.dim_tokens_enc = dim_tokens_enc
         
-        # MIL 집계를 위한 Attention 레이어
+        # Attention layer for MIL aggregation
         self.instance_attention = nn.MultiheadAttention(
             embed_dim=dim_tokens_enc,
             num_heads=self.num_heads,
@@ -144,10 +144,10 @@ class MILOutputAdapter(nn.Module):
         assert self.dim_tokens_enc is not None, 'Need to call init(dim_tokens_enc) function first'
         B = encoder_tokens.shape[0]
         
-        # Bag-level query 생성
+        # Create bag-level query
         bag_query = self.bag_query.expand(B, -1, -1)  # (B, 1, dim_tokens)
         
-        # MIL 집계
+        # MIL aggregation
         bag_features, attention_weights = self.instance_attention(
             query=bag_query,
             key=encoder_tokens,
@@ -331,7 +331,7 @@ class ReConstructOutputAdapter(nn.Module):
             if i == 0:
                 x = layer(x)
             else:
-                # inter_input의 길이를 확인하고 적절한 인덱스 사용
+                # Check length of inter_input and use appropriate index
                 inter_idx = min(i-1, len(inter_input)-1)
                 if inter_idx >= 0 and inter_idx < len(inter_input):
                     inter = self.proj_layers[i-1](self.inter_norm_layers[i-1](inter_input[inter_idx]))

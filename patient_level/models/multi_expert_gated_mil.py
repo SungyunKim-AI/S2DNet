@@ -26,7 +26,7 @@ class MultiExpertGatedMIL(nn.Module):
         self.neuro_dim = muscle_dim * 2
         
 
-        # 1. 전문가별 독립적인 Projection
+        # 1. Independent projection per expert
         self.nl_proj = nn.Sequential(
             nn.Linear(muscle_dim, hidden_dim),
             nn.ReLU(),
@@ -38,11 +38,11 @@ class MultiExpertGatedMIL(nn.Module):
             nn.LayerNorm(hidden_dim)
         )
 
-        # 2. 해부학적 게이트
+        # 2. Anatomical gate
         self.anatomy_to_nl = nn.Sequential(nn.Linear(anatomy_dim, hidden_dim), nn.Sigmoid())
         self.anatomy_to_neuro = nn.Sequential(nn.Linear(anatomy_dim, hidden_dim), nn.Sigmoid())
 
-        # 3. 통합 레이어
+        # 3. Fusion layer
         self.fusion_fc = nn.Sequential(
             nn.Linear(hidden_dim * 2, hidden_dim),
             nn.ReLU(),
@@ -72,7 +72,7 @@ class MultiExpertGatedMIL(nn.Module):
             nn.Linear(hidden_dim // 2, num_classes)
         )
 
-        # # 가중치 학습 가능한 파라미터 (이전 제안 반영)
+        # # Learnable weight parameters (incorporating prior suggestion)
         self.alpha_nl = nn.Parameter(torch.tensor([0.1]))
         self.alpha_neuro = nn.Parameter(torch.tensor([0.1]))
 
@@ -88,7 +88,7 @@ class MultiExpertGatedMIL(nn.Module):
 
         # --- Step 1: Feature Processing with Ablation Logic ---
         
-        # [Ablation: No Muscle] 시그널 정보를 상수로 고정 (1.0)
+        # [Ablation: No Muscle] Fix signal information to a constant (1.0)
         if self.ablation_mode == 'no_muscle':
             nl_embed = torch.ones_like(nl_embed)
             neuro_embed = torch.ones_like(neuro_embed)
@@ -96,7 +96,7 @@ class MultiExpertGatedMIL(nn.Module):
         h_nl = self.nl_proj(nl_embed)
         h_neuro = self.neuro_proj(neuro_embed)
 
-        # [Ablation: No Anatomy] 게이트 가중치를 0으로 고정하여 Residual만 남김
+        # [Ablation: No Anatomy] Fix gate weights to 0, leaving only the residual
         if self.ablation_mode == 'no_anatomy':
             gate_nl = torch.zeros_like(h_nl)
             gate_neuro = torch.zeros_like(h_neuro)
@@ -104,13 +104,13 @@ class MultiExpertGatedMIL(nn.Module):
             gate_nl = self.anatomy_to_nl(anatomy_info)
             gate_neuro = self.anatomy_to_neuro(anatomy_info)
 
-        # 최종 임베딩 계산 (Residual Gated Fusion)
+        # Compute final embedding (Residual Gated Fusion)
         h_nl_gated = h_nl * (1.0 + self.alpha_nl * gate_nl)
         h_neuro_gated = h_neuro * (1.0 + self.alpha_neuro * gate_neuro)
         # h_nl_gated = h_nl * (1.0 + gate_nl)
         # h_neuro_gated = h_neuro * (1.0 + gate_neuro)
 
-        # --- Step 2 ~ 6: 후속 공정 (기존과 동일) ---
+        # --- Steps 2 ~ 6: Subsequent processing (same as before) ---
         h_combined = torch.cat([h_nl_gated, h_neuro_gated], dim=-1)
         h = self.fusion_fc(h_combined)
 
@@ -121,7 +121,7 @@ class MultiExpertGatedMIL(nn.Module):
             
         h_trans = self.transformer(h, src_key_padding_mask=key_padding_mask)
 
-        # Attention Pooling (Masking 적용)
+        # Attention Pooling (with masking applied)
         A_V = self.attention_V(h_trans)
         A_U = self.attention_U(h_trans)
         A_scores = self.attention_weights(A_V * A_U).squeeze(-1)

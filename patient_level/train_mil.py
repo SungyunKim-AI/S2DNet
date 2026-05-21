@@ -25,13 +25,13 @@ from utils.get_loss import FocalLoss
 def parse_args():
     parser = argparse.ArgumentParser(description='Train Gated Attention MIL Model')
     
-    # 데이터 경로
+    # Data paths
     parser.add_argument('--train_data', type=str, default='/home/coder/workspace/data/BMI_nEMG/3_patient-level_clf/data/BimodalMAE_train_embed.parquet',
                         help='Training data path (parquet file)')
     parser.add_argument('--valid_data', type=str, default='/home/coder/workspace/data/BMI_nEMG/3_patient-level_clf/data/BimodalMAE_valid_embed.parquet',
                         help='Validation data path (parquet file)')
     
-    # 모델 설정
+    # Model configuration
     parser.add_argument('--muscle_dim', type=int, default=192,
                         help='Input dimension')
     parser.add_argument('--hidden_dim', type=int, default=128,
@@ -45,9 +45,9 @@ def parse_args():
     parser.add_argument('--ablation_mode', type=str, default='full',
                         help='Ablation mode: full, no_muscle, no_anatomy')
     
-    # 학습 설정 (bag_size 고정 시 샘플 shape 일정하므로 batch_size 상향 가능)
+    # Training configuration (when bag_size is fixed, sample shape is consistent so batch_size can be increased)
     parser.add_argument('--batch_size', type=int, default=256,
-                        help='Batch size (bag 고정 시 8~32 등으로 올려도 됨)')
+                        help='Batch size (can be raised to 8-32 when bag size is fixed)')
     parser.add_argument('--num_epochs', type=int, default=50,
                         help='Number of epochs')
     parser.add_argument('--learning_rate', type=float, default=1e-4,
@@ -74,13 +74,13 @@ def parse_args():
     parser.add_argument('--gpu', type=str, default='1',
                         help='CUDA visible devices')
     parser.add_argument('--bag_size', type=int, default=10,
-                        help='고정 bag 크기 (0이면 가변). 10이면 부족 시 제로패딩, 초과 시 랜덤 10개 추출, 패딩 마스킹')
+                        help='Fixed bag size (0 = variable). With 10: zero-pad if fewer, randomly sample 10 if more, with padding mask')
     
     return parser.parse_args()
 
 
 def train_one_epoch(model, train_loader, criterion, optimizer, device, accum_steps, grad_clip, use_padding_mask=False):
-    """한 epoch의 학습을 수행. use_padding_mask=True면 (inputs, labels, padding_mask) 배치."""
+    """Run training for one epoch. If use_padding_mask=True, batches are (inputs, labels, padding_mask)."""
     model.train()
     train_loss = 0.0
     train_correct = 0
@@ -95,7 +95,7 @@ def train_one_epoch(model, train_loader, criterion, optimizer, device, accum_ste
         else:
             inputs, labels = batch
             padding_mask = None
-        # 고정 bag 사용 시 (B, bag_size, D) 그대로 전달; 가변 bag 시 (1, N, D) → squeeze(0)
+        # When using fixed bag, pass (B, bag_size, D) as-is; for variable bag (1, N, D) → squeeze(0)
         if not use_padding_mask:
             inputs = inputs.squeeze(0).to(device, non_blocking=True)
         else:
@@ -130,7 +130,7 @@ def train_one_epoch(model, train_loader, criterion, optimizer, device, accum_ste
 
 
 def evaluate(model, valid_loader, criterion, device, num_classes, use_padding_mask=False):
-    """Validation을 수행하고 메트릭을 반환. use_padding_mask=True면 (inputs, labels, padding_mask) 배치."""
+    """Run validation and return metrics. If use_padding_mask=True, batches are (inputs, labels, padding_mask)."""
     model.eval()
     val_loss = 0.0
     val_correct = 0
@@ -164,13 +164,13 @@ def evaluate(model, valid_loader, criterion, device, num_classes, use_padding_ma
             val_total += labels.size(0)
             val_correct += (predicted == labels).sum().item()
             
-            # AUROC 계산을 위한 확률값과 라벨 수집
+            # Collect probabilities and labels for AUROC computation
             probs = torch.softmax(logits, dim=1)
             all_pred_proba.append(probs.cpu().numpy())
             all_pred.append(predicted.cpu().numpy())
             all_labels.append(labels.cpu().numpy())
     
-    # 메트릭 계산
+    # Compute metrics
     all_pred_proba = np.concatenate(all_pred_proba, axis=0)
     all_pred = np.concatenate(all_pred, axis=0)
     all_labels = np.concatenate(all_labels, axis=0)
@@ -201,7 +201,7 @@ def train_model(model, train_loader, valid_loader, num_epochs=20, learning_rate=
                 grad_clip=1.0, patience=5, focal_gamma=3.0, model_save_path='best_mil_model.pth', weight_decay=1e-5,
                 scheduler_factor=0.5, scheduler_patience=3, metrics_save_path='best_model_metrics.txt',
                 class_names=None, use_padding_mask=False):
-    """모델 학습 메인 함수. use_padding_mask: 배치가 (inputs, labels, padding_mask)일 때 True."""
+    """Main model training function. use_padding_mask: set True when batches are (inputs, labels, padding_mask)."""
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
     
@@ -222,7 +222,7 @@ def train_model(model, train_loader, valid_loader, num_epochs=20, learning_rate=
         optimizer, mode='max', factor=scheduler_factor, patience=scheduler_patience
     )
     
-    # Early Stopping을 위한 변수들
+    # Variables for early stopping
     best_auroc = 0.0
     patience_counter = 0
     num_classes = len(class_names)
@@ -243,16 +243,16 @@ def train_model(model, train_loader, valid_loader, num_epochs=20, learning_rate=
               f"Valid AUROC: {val_metrics['auroc_macro']:.4f}, "
               f"Valid AUPRC: {val_metrics['auprc_macro']:.4f}")
         
-        # Learning Rate Scheduler 업데이트
+        # Update learning rate scheduler
         scheduler.step(val_metrics['auroc_macro'])
         
-        # Best Model 저장 (AUROC 기준)
+        # Save best model (based on AUROC)
         if val_metrics['auroc_macro'] > best_auroc:
             best_auroc = val_metrics['auroc_macro']
             patience_counter = 0
             torch.save(model.state_dict(), model_save_path)
             
-            # 메트릭 저장 (AUROC, AUPRC 포함)
+            # Save metrics (including AUROC, AUPRC)
             save_metrics(
                 val_metrics['labels'],
                 val_metrics['predictions'],
@@ -296,7 +296,7 @@ if __name__ == "__main__":
     os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
     
-    # Dataset & DataLoader (bag_size>0이면 고정 bag + 제로패딩/랜덤샘플 + padding_mask)
+    # Dataset & DataLoader (if bag_size>0: fixed bag + zero-padding/random sampling + padding_mask)
     train_df = pd.read_parquet(args.train_data)
     valid_df = pd.read_parquet(args.valid_data)
     if getattr(args, 'bag_size', 0) > 0:
@@ -318,7 +318,7 @@ if __name__ == "__main__":
         ablation_mode=args.ablation_mode
     )
 
-    # 클래스 이름 정의
+    # Define class names
     if args.num_classes == 4:
         class_names = ['normal', 'radiculopathy', 'focal neuropathy', 'polyneuropathy']
     elif args.num_classes == 5:
@@ -326,7 +326,7 @@ if __name__ == "__main__":
     else:
         raise ValueError(f"Invalid number of classes: {args.num_classes}")
     
-    # 모델 및 메트릭 저장 경로 설정
+    # Set model and metrics save paths
     model_save_path = str(args.output_dir / 'best_model.pth')
     metrics_save_path = str(args.output_dir / 'best_model_metrics.txt')
     

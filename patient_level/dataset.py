@@ -4,7 +4,7 @@ from torch.utils.data import Dataset
 import numpy as np
 
 def _make_row_feature(group, i):
-    """MILDataset과 동일한 행 하나의 feature 벡터 (embed_nl, embed_n, anatomy)."""
+    """Build a single row feature vector identical to MILDataset (embed_nl, embed_n, anatomy)."""
     val_nl = group.iloc[i, 4]
     embed_nl = torch.as_tensor(np.array(val_nl, copy=True), dtype=torch.float32)
     embed_nl = embed_nl.unsqueeze(0)
@@ -19,7 +19,7 @@ def _make_row_feature(group, i):
 
 
 class MILDataset(Dataset):
-    """Bag 크기 고정: 부족하면 제로 패딩, 초과하면 랜덤 10개 추출. padding_mask 반환 (True=실제, False=패딩)."""
+    """Fixed bag size: zero-pad if fewer samples, randomly subsample if more. Returns padding_mask (True=real, False=padded)."""
     def __init__(self, df, bag_size=10, seed=42):
         self.bag_size = bag_size
         self.rng = np.random.default_rng(seed)

@@ -16,13 +16,13 @@ from finetuning import get_model
 
 
 def _load_config_from_ovr_folder(config_path):
-    """OvR 폴더(nl_vs_others / n_vs_others / m_vs_others)의 config.yaml 로드 후 pretrained config 병합."""
+    """Load config.yaml from OvR folder (nl_vs_others / n_vs_others / m_vs_others) and merge pretrained config."""
     with open(config_path, "r") as f:
         cfg = yaml.safe_load(f)
     args = Namespace(**cfg)
     args.inference = True
     args.num_classes = 2
-    # get_model용 backbone 설정: pretrained config 병합 (finetuning.py와 동일)
+    # Backbone config for get_model: merge pretrained config (same as finetuning.py)
     if getattr(args, "pretrained_config_path", None) and Path(args.pretrained_config_path).exists():
         with open(args.pretrained_config_path, "r") as f:
             pretrained_cfg = yaml.safe_load(f)
@@ -33,7 +33,7 @@ def _load_config_from_ovr_folder(config_path):
 
 
 def load_ovr_model(ckpt_path, device):
-    """체크포인트 경로만 받아, 상위 상위 폴더(예: nl_vs_others)의 config.yaml로 모델 로드."""
+    """Load model using only checkpoint path, reading config.yaml from the grandparent folder (e.g., nl_vs_others)."""
     ckpt_path = Path(ckpt_path).resolve()
     config_path = ckpt_path.parent.parent / "config.yaml"
     if not config_path.exists():
@@ -64,7 +64,7 @@ def extract_embeddings(model_nl, model_n, model_m, dataloader, device):
         }
 
         with torch.amp.autocast("cuda"):
-            # 각 OvR 모델의 bag-level embedding (B, 1, dim_tokens)
+            # Bag-level embedding from each OvR model (B, 1, dim_tokens)
             embed_nl = model_nl(inputs, norm_dict, return_embed=True)['cls']
             embed_n = model_n(inputs, norm_dict, return_embed=True)['cls']
             embed_m = model_m(inputs, norm_dict, return_embed=True)['cls']
@@ -93,7 +93,7 @@ def extract_embeddings(model_nl, model_n, model_m, dataloader, device):
     return all_embeds
 
 if __name__ == "__main__":
-    # 모델 경로만 지정하면, 각 경로의 상위 상위 폴더(nl_vs_others / n_vs_others / m_vs_others)에서 config.yaml 로드
+    # Only model paths are specified; config.yaml is loaded from each path's grandparent folder (nl_vs_others / n_vs_others / m_vs_others)
     model_nl_vs_others_path = "./outputs/muscle_level/BimodalMAE_OvR/nl_vs_others/ckpts/BMIRC_022.pth"
     model_n_vs_others_path = "./outputs/muscle_level/BimodalMAE_OvR/n_vs_others/ckpts/BMIRC_017.pth"
     model_m_vs_others_path = "./outputs/muscle_level/BimodalMAE_OvR/m_vs_others/ckpts/BMIRC_022.pth"
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     # model_n_vs_others_path = "./outputs/muscle_level/BimodalMAE_OvR_tmp/n_vs_others/ckpts/BMIRC_008.pth"
     # model_m_vs_others_path = "./outputs/muscle_level/BimodalMAE_OvR_tmp/m_vs_others/ckpts/BMIRC_008.pth"
 
-    # 데이터/실행 설정은 첫 번째 모델 경로의 OvR 폴더 config에서 로드
+    # Data/runtime config is loaded from the OvR folder config of the first model path
     args = _load_config_from_ovr_folder(Path(model_nl_vs_others_path).resolve().parent.parent / "config.yaml")
     output_dir = "./outputs/muscle_level/BimodalMAE_OvR/ensemble"
     args.output_dir = output_dir

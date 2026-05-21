@@ -316,8 +316,8 @@ class BimodalMAE(nn.Module):
 
 class BimodalMAE_Classifier(nn.Module):
     """
-    Multi-Instance Learning을 위한 Classifier 클래스
-    입력: (B, 50, C, W) 형태의 bag 데이터
+    Classifier class for Multi-Instance Learning
+    Input: bag data of shape (B, 50, C, W)
     """
 
     def __init__(self,
@@ -444,9 +444,9 @@ class BimodalMAE_Classifier(nn.Module):
         **kwargs
     ):
         """
-        MIL forward pass - 배치화된 처리
-        입력: {'time': (B, 50, C, W), 'freq': (B, 50, C, W//2)}
-        출력: output_adapters와 호환되는 형태
+        MIL forward pass - batched processing
+        Input: {'time': (B, 50, C, W), 'freq': (B, 50, C, W//2)}
+        Output: compatible with output_adapters
         """
         if 'time' in x:
             B, num_instances, C, W = x['time'].shape
@@ -477,7 +477,7 @@ class BimodalMAE_Classifier(nn.Module):
         input_tokens_t = torch.cat([cls_tokens_t, input_task_tokens['time']], dim=1)
         input_tokens_f = torch.cat([cls_tokens_f, input_task_tokens['freq']], dim=1)
 
-        # Transformer forward pass(MS-MC) - 모든 인스턴스를 한번에 처리
+        # Transformer forward pass (MS-MC) - process all instances at once
         encoder_tokens_t = self.ms_t_norm(self.encoder_ms_t(input_tokens_t))
         encoder_tokens_f = self.ms_f_norm(self.encoder_ms_f(input_tokens_f))
 
@@ -488,15 +488,15 @@ class BimodalMAE_Classifier(nn.Module):
         encoder_tokens_mc = torch.cat([cls_tokens, encoder_tokens_mc], dim=1)
         encoder_tokens_mc = self.encoder_mc(encoder_tokens_mc)
 
-        # Global token (cls token)을 인스턴스 특징으로 사용
+        # Use global token (cls token) as instance features
         instance_features = encoder_tokens_mc[:, 0, :]  # (B*50, dim_tokens)
         
         if norm_dict is not None:
-            # Transformer 특징에 역정규화 적용 (mean, std가 제공된 경우)
+            # Apply denormalization to Transformer features (when mean, std are provided)
             mean_batched = norm_dict['mean'].view(B * num_instances, -1)  # (B*50, 1)
             std_batched = norm_dict['std'].view(B * num_instances, -1)    # (B*50, 1)
             
-            # dim_tokens 차원으로 확장: (B*50, 1) -> (B*50, dim_tokens)
+            # Expand to dim_tokens dimension: (B*50, 1) -> (B*50, dim_tokens)
             mean_expanded = mean_batched.expand(-1, instance_features.shape[-1])  # (B*50, dim_tokens)
             std_expanded = std_batched.expand(-1, instance_features.shape[-1])     # (B*50, dim_tokens)
             
@@ -517,7 +517,7 @@ class BimodalMAE_Classifier(nn.Module):
         return preds
 
         # preds = {
-        #     domain: adapter(encoder_tokens=instance_features, return_embed=return_embed)  # (B, bag_size, dim_tokens) 전달
+        #     domain: adapter(encoder_tokens=instance_features, return_embed=return_embed)  # pass (B, bag_size, dim_tokens)
         #     for domain, adapter in self.output_adapters.items()
         # }
         # return preds

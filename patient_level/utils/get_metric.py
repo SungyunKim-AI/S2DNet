@@ -81,25 +81,25 @@ def _bootstrap_ci(y_true, y_pred_proba, num_classes, n_bootstrap=1000, seed=42):
     }
 
 def calculate_auroc(y_true, y_pred_proba, num_classes=4):
-    """AUROC 계산 (Macro, Weighted, Per-class)"""
+    """Calculate AUROC (Macro, Weighted, Per-class)"""
     macro_auroc = roc_auc_score(y_true, y_pred_proba, multi_class='ovr', average='macro')
     weighted_auroc = roc_auc_score(y_true, y_pred_proba, multi_class='ovr', average='weighted')
     
-    # 각 클래스별 AUROC 계산
+    # Compute AUROC per class
     per_class_auroc = []
     for i in range(num_classes):
         try:
             class_auroc = roc_auc_score((y_true == i).astype(int), y_pred_proba[:, i])
             per_class_auroc.append(class_auroc)
         except ValueError:
-            # 해당 클래스가 validation set에 없는 경우
+            # Class not present in validation set
             per_class_auroc.append(0.0)
     return macro_auroc, weighted_auroc, per_class_auroc
 
 
 def calculate_auprc(y_true, y_pred_proba, num_classes=4):
-    """AUPRC 계산 (Macro, Weighted, Per-class). One-vs-rest 기준."""
-    # 각 클래스별 AUPRC 계산
+    """Calculate AUPRC (Macro, Weighted, Per-class). Based on one-vs-rest."""
+    # Compute AUPRC per class
     per_class_auprc = []
     for i in range(num_classes):
         try:
@@ -109,7 +109,7 @@ def calculate_auprc(y_true, y_pred_proba, num_classes=4):
             per_class_auprc.append(0.0)
     per_class_auprc = np.array(per_class_auprc)
     macro_auprc = float(np.mean(per_class_auprc))
-    # Weighted: 클래스별 샘플 수 비율로 가중 평균
+    # Weighted: weighted average by per-class sample count ratio
     _, counts = np.unique(y_true, return_counts=True)
     if len(counts) == num_classes:
         weights = counts / counts.sum()
@@ -124,7 +124,7 @@ def save_metrics(y_true, y_pred, y_pred_proba, class_names, save_path, epoch,
                  macro_auroc, weighted_auroc, per_class_auroc,
                  macro_auprc=None, weighted_auprc=None, per_class_auprc=None,
                  n_bootstrap=1000):
-    """메트릭을 텍스트 파일로 저장 (AUROC, AUPRC, F1 + Bootstrap 95% CI 포함)"""
+    """Save metrics to a text file (includes AUROC, AUPRC, F1 + Bootstrap 95% CI)"""
     num_classes = len(class_names)
     y_true = np.array(y_true)
     y_pred = np.array(y_pred)

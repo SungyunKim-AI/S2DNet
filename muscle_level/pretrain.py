@@ -31,19 +31,19 @@ from models.output_adapters import ReConstructOutputAdapter
 
 
 def setup_ddp(rank, world_size, backend='nccl'):
-    """DDP 초기화"""
+    """Initialize DDP"""
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '12355'
     
-    # 프로세스 그룹 초기화
+    # Initialize process group
     dist.init_process_group(backend, rank=rank, world_size=world_size)
     
-    # GPU 설정
+    # Set GPU device
     torch.cuda.set_device(rank)
 
 
 def cleanup_ddp():
-    """DDP 정리"""
+    """Clean up DDP"""
     dist.destroy_process_group()
 
 
@@ -189,7 +189,7 @@ def train_one_epoch(
     metric_logger.add_meter('lr', SmoothedValue(window_size=1, fmt='{value:.6f}'))
     metric_logger.add_meter('min_lr', SmoothedValue(window_size=1, fmt='{value:.6f}'))
 
-    # DistributedSampler의 epoch 설정
+    # Set epoch for DistributedSampler
     if hasattr(dataloader.sampler, 'set_epoch'):
         dataloader.sampler.set_epoch(epoch)
 
@@ -237,7 +237,7 @@ def train_one_epoch(
         }
         metric_logger.update(log_writer=log_writer, **metric)
         
-        # 메인 프로세스에서만 로그 출력
+        # Only log in the main process
         if rank == 0 and step % 100 == 0:
             metric_logger.log_every(step, len(dataloader), header=f'Epoch: [{epoch}]')
 
@@ -290,9 +290,9 @@ def evaluate(
         total_freq_loss += task_loss_values['freq_loss']
         num_samples += 1
 
-    # DDP에서 모든 프로세스의 결과를 합산
+    # Sum results from all processes in DDP
     if dist.is_initialized():
-        # 텐서로 변환하여 all_reduce 수행
+        # Convert to tensor and perform all_reduce
         total_loss_tensor = torch.tensor(total_loss, device=device)
         total_time_loss_tensor = torch.tensor(total_time_loss, device=device)
         total_freq_loss_tensor = torch.tensor(total_freq_loss, device=device)
@@ -312,7 +312,7 @@ def evaluate(
     avg_time_loss = total_time_loss / num_samples
     avg_freq_loss = total_freq_loss / num_samples
     
-    # 메인 프로세스에서만 출력
+    # Only print in the main process
     if rank == 0:
         print(f"Validation - Loss: {avg_loss:.4f}, Time Loss: {avg_time_loss:.4f}, Freq Loss: {avg_freq_loss:.4f}")
         
@@ -325,8 +325,8 @@ def evaluate(
 
 
 def run_pretrain_ddp(rank, world_size, args):
-    """DDP로 실행되는 메인 학습 함수"""
-    # DDP 초기화
+    """Main training function executed with DDP"""
+    # Initialize DDP
     setup_ddp(rank, world_size, args.backend)
     
     # Dataset & DataLoader with DistributedSampler
@@ -350,7 +350,7 @@ def run_pretrain_ddp(rank, world_size, args):
     device = torch.device(f'cuda:{rank}')
     model = get_model(args).to(device)
     
-    # DDP로 모델 래핑
+    # Wrap model with DDP
     model = DDP(model, device_ids=[rank], output_device=rank, find_unused_parameters=True)
 
     # Task-specific Loss Criteria
@@ -367,43 +367,43 @@ def run_pretrain_ddp(rank, world_size, args):
 
     # Optimizer
     optimizer = create_optimizer(
-        args, {'model': model.module, 'balancer': loss_balancer})  # model.module로 접근
+        args, {'model': model.module, 'balancer': loss_balancer})  # access via model.module
     loss_scaler = NativeScaler()
     
-    # Resume training 체크 및 상태 복원
+    # Check resume training and restore state
     start_epoch = 0
     global_step = 0
-    if args.resume and rank == 0:  # 메인 프로세스에서만 체크포인트 확인
+    if args.resume and rank == 0:  # Check checkpoint only in the main process
         checkpoint_file, last_epoch = find_latest_checkpoint(args.output_dir)
         if checkpoint_file is not None:
             print(f"Resuming training from {checkpoint_file}")
             print(f"Last epoch: {last_epoch}")
             
-            # 체크포인트 로드
+            # Load checkpoint
             checkpoint = load_checkpoint(checkpoint_file)
             if checkpoint is not None:
-                # 모든 프로세스에서 모델 상태 복원
+                # Restore model state across all processes
                 model.module.load_state_dict(checkpoint['model_state_dict'])
                 
-                # 옵티마이저 상태 복원
+                # Restore optimizer state
                 if 'optimizer_state_dict' in checkpoint:
                     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
                     if rank == 0:
                         print("Optimizer state restored")
                 
-                # loss scaler 상태 복원
+                # Restore loss scaler state
                 if 'scaler' in checkpoint:
                     loss_scaler.load_state_dict(checkpoint['scaler'])
                     if rank == 0:
                         print("Loss scaler state restored")
                 
-                # global step 복원
+                # Restore global step
                 if 'global_step' in checkpoint:
                     global_step = checkpoint['global_step']
                     if rank == 0:
                         print(f"Global step restored: {global_step}")
                 
-                start_epoch = last_epoch + 1  # 다음 epoch부터 시작
+                start_epoch = last_epoch + 1  # Start from the next epoch
                 if rank == 0:
                     print(f"Resuming from epoch {start_epoch}")
             else:
@@ -415,7 +415,7 @@ def run_pretrain_ddp(rank, world_size, args):
                 print("No checkpoint found, starting from scratch")
             start_epoch = 0
     
-    # 모든 프로세스에서 동기화
+    # Synchronize across all processes
     if dist.is_initialized():
         dist.barrier()
 
@@ -435,7 +435,7 @@ def run_pretrain_ddp(rank, world_size, args):
     num_encoded_tokens_t = int(args.seq_len // args.patch_size * (1 - args.mask_ratio_t))
     num_encoded_tokens_f = int((args.seq_len//2) // args.patch_size * (1 - args.mask_ratio_f))
 
-    # 메인 프로세스에서만 모델 정보 출력
+    # Only print model info in the main process
     if rank == 0:
         print(f"Model = %s" % str(model.module))
         n_parameters = sum(p.numel() for p in model.module.parameters() if p.requires_grad)
@@ -450,7 +450,7 @@ def run_pretrain_ddp(rank, world_size, args):
         print("Max WD = %.7f, Min WD = %.7f" % (max(wd_schedule_values), min(wd_schedule_values)))
         print(f"World size = {world_size}")
 
-    # 로그 라이터는 메인 프로세스에서만 생성
+    # Create log writer only in the main process
     log_writer = None
     if rank == 0:
         log_writer = TensorBoardLogger(args.output_dir)
@@ -483,19 +483,19 @@ def run_pretrain_ddp(rank, world_size, args):
             num_encoded_tokens_t, num_encoded_tokens_f, rank
         )
 
-        # 메인 프로세스에서만 체크포인트 저장
+        # Save checkpoint only in the main process
         if rank == 0 and (epoch % 10 == 0 or epoch == args.epochs-1):
             save_path = Path(args.output_dir) / 'ckpts' / f'backbone_{epoch:03d}.pth'
             save_checkpoint(save_path, epoch, model.module, optimizer, loss_scaler, global_step)
 
-        # 모든 프로세스 동기화
+        # Synchronize all processes
         if dist.is_initialized():
             dist.barrier()
 
     if rank == 0 and log_writer is not None:
         log_writer.close()
     
-    # DDP 정리
+    # Clean up DDP
     cleanup_ddp()
 
 
@@ -509,7 +509,7 @@ if __name__ == '__main__':
     ckpts_dir = output_dir / 'ckpts'
     ckpts_dir.mkdir(parents=True, exist_ok=True)
 
-    # save arguments (메인 프로세스에서만)
+    # save arguments (main process only)
     args_dict = vars(args)
     yaml_path = Path(args.output_dir) / "config.yaml"
     with open(yaml_path, "w", encoding="utf-8") as f:
@@ -520,5 +520,5 @@ if __name__ == '__main__':
     np.random.seed(seed)
     torch.backends.benchmark = True
 
-    # 멀티프로세싱으로 DDP 실행
+    # Run DDP with multiprocessing
     mp.spawn(run_pretrain_ddp, args=(args.world_size, args), nprocs=args.world_size, join=True)

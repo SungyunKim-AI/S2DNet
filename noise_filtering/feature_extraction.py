@@ -20,11 +20,11 @@ import joblib
 @ray.remote
 def extract_features_for_file(file_path, file_data, fs=9600, step=1):
     """
-    특정 파일의 모든 세그먼트에 대해 피처를 추출합니다.
-    :param file_path: HDF5 파일 경로
-    :param file_data: 해당 파일의 세그먼트 데이터 (DataFrame)
-    :param fs: 샘플링 주파수 (Hz), 기본값 9600
-    :return: (segmentid, features) 튜플 리스트
+    Extract features for all segments in a given file.
+    :param file_path: Path to the HDF5 file
+    :param file_data: Segment data for this file (DataFrame)
+    :param fs: Sampling frequency in Hz, default 9600
+    :return: List of (segmentid, features) tuples
     """
     results = []
     
@@ -35,11 +35,11 @@ def extract_features_for_file(file_path, file_data, fs=9600, step=1):
             segmentid = row["segmentid"]
             
             try:
-                # 신호 로드
+                # Load signal
                 signal = f[f"emg/muscle_{muscle_index}/segment_{segment_index}/signal"][()]
                 signal = np.ascontiguousarray(signal).squeeze()
-                
-                # 피처 추출
+
+                # Extract features
                 # features = extract_single_signal_features(signal, fs)
                 features = extract_single_signal_features(signal, fs, step)
                 results.append((segmentid, features))
@@ -57,24 +57,24 @@ def extract_features(table, step):
     dataset = ClusteringDataset(table, inputs=[[{"signal":{"axis":["C","T"]}}]], targets=None)
     print(f"=> dataset size: {len(dataset)}")
     
-    # file_path 기준으로 그룹화
+    # Group by file_path
     file_groups = dataset.get_file_groups()
-    print(f"=> 총 {len(file_groups)}개 파일로 그룹화됨")
-    
-    # 모든 파일에 대해 feature 추출 작업 생성
-    file_refs = [extract_features_for_file.remote(file_path, file_data, step=step) 
-                for file_path, file_data in tqdm(file_groups, desc="작업 생성", ncols=100)]
-    
-    # 결과 수집
+    print(f"=> Grouped into {len(file_groups)} files")
+
+    # Create feature extraction tasks for all files
+    file_refs = [extract_features_for_file.remote(file_path, file_data, step=step)
+                for file_path, file_data in tqdm(file_groups, desc="Creating tasks", ncols=100)]
+
+    # Collect results
     all_results = []
-    with tqdm(total=len(file_refs), desc="결과 수집", ncols=100) as pbar:
+    with tqdm(total=len(file_refs), desc="Collecting results", ncols=100) as pbar:
         while file_refs:
             done_id, file_refs = ray.wait(file_refs, num_returns=min(10, len(file_refs)))
             batch_results = ray.get(done_id)
             all_results.extend(batch_results)
             pbar.update(len(done_id))
 
-    # 결과 처리 - segmentid와 features 분리
+    # Process results - separate segmentid and features
     flattened_results = []
     for file_results in all_results:
         if isinstance(file_results, list):
@@ -85,9 +85,9 @@ def extract_features(table, step):
     segmentids = [result[0] for result in flattened_results]
     all_features = np.array([result[1] for result in flattened_results])
 
-    print(f"=> 총 {len(segmentids)}개 세그먼트 처리 완료")
+    print(f"=> Processed {len(segmentids)} segments in total")
     
-    # segmentid 순서대로 정렬
+    # Sort in order of segmentid
     sorted_indices = np.argsort(segmentids)
     sorted_features = all_features[sorted_indices]
     sorted_segmentids = np.array(segmentids)[sorted_indices]
@@ -100,7 +100,7 @@ def extract_features(table, step):
 
 
 def extract_temporal_features(signal):
-    # ----- 시간 영역 피처 -----
+    # ----- Time domain features -----
     MAV = np.mean(np.abs(signal))
     STD = np.std(signal)
     WL = np.sum(np.abs(np.diff(signal)))
@@ -111,7 +111,7 @@ def extract_temporal_features(signal):
     return temporal_features
 
 def extract_frequency_features(signal, fs=9600, step=1):
-    # ----- 주파수 영역 피처 -----
+    # ----- Frequency domain features -----
     fft_vals = fft(signal)
     fft_freqs = fftfreq(len(signal), 1/fs)
     fft_power = np.abs(fft_vals)**2
@@ -139,7 +139,7 @@ def extract_frequency_features(signal, fs=9600, step=1):
         return [*frequency_features, *step2_features]
 
 def extract_frequency_features_step2(freqs, power, TP, MNF):
-    # 2. 대역별 PSR(전체 파워 대비 비율) 계산
+    # 2. Compute per-band PSR (power spectral ratio relative to total power)
     bands = [
         (10, 40), (40, 60), (60, 80),
         (80, 100), (100, 150), (150, 200)
@@ -151,19 +151,19 @@ def extract_frequency_features_step2(freqs, power, TP, MNF):
         psr = band_power / TP if TP > 0 else 0
         psr_features.append(psr)
     
-    # 3. 추가 고급 피처 (선택적)
-    # 중심 주파수 분산(VCF)
+    # 3. Additional advanced features (optional)
+    # Variance of center frequency (VCF)
     VCF = np.sum(power * (freqs - MNF)**2) / TP if TP > 0 else 0
     
-    # 평균 피크 주파수
+    # Mean peak frequency
     peaks, _ = find_peaks(power)
     mean_peak_freq = np.mean(freqs[peaks]) if len(peaks) > 0 else 0
     
-    # 스펙트럴 엔트로피
+    # Spectral entropy
     power_normalized = power / TP if TP > 0 else np.zeros_like(power)
     spectral_entropy = -np.sum(power_normalized * np.log2(power_normalized + 1e-12))
     
-    # 스펙트럼 경사
+    # Spectral slope
     valid_mask = (freqs > 0) & (power > 0)
     if np.any(valid_mask):
         log_freqs = np.log10(freqs[valid_mask])
@@ -197,15 +197,15 @@ def extract_single_signal_features(signal, fs=9600, step=1):
 
 @click.command()
 @click.option('--cache-dir', type=str, default='./features')
-@click.option('--sample-size', type=int, default=None, help='데이터 샘플링 크기 (None이면 전체 사용)')
-@click.option('--step', type=int, default=1, help='피처 추출 단계 (1: 시간 영역 + 주파수 영역, 2: 주파수 영역, 3: 시간 영역 + 주파수 영역)')
-@click.option('--existing-features', type=str, default=None, help='이미 저장된 피처 파일 경로 (있으면 해당 segmentid 기준으로 테이블 필터링)') # "./features/all_step1_extracted_features.parquet", "./features/step2_extracted_features.parquet"
+@click.option('--sample-size', type=int, default=None, help='Data sampling size (None uses all data)')
+@click.option('--step', type=int, default=1, help='Feature extraction step (1: time+freq, 2: freq only, 3: time+freq with normalization)')
+@click.option('--existing-features', type=str, default=None, help='Path to an already-saved feature file; if provided, table is filtered by its segmentids') # "./features/all_step1_extracted_features.parquet", "./features/step2_extracted_features.parquet"
 def main(cache_dir, sample_size, step, existing_features):
     random.seed(42)
     np.random.seed(42)
     os.environ['PYTHONHASHSEED'] = str(42)
     
-    # Ray 초기화
+    # Initialize Ray
     ray.init(
         num_cpus=50,
         _temp_dir="/home/coder/workspace/data/ray_temp",
@@ -213,19 +213,19 @@ def main(cache_dir, sample_size, step, existing_features):
 
     table = pd.read_parquet("/home/coder/workspace/data/BMI_nEMG/data/noise_filtered/clustering_meta_data.parquet")
     
-    # 이미 저장된 피처 파일이 있으면 해당 segmentid 기준으로 테이블 필터링
+    # If an existing feature file is present, filter table by its segmentids
     if existing_features is not None:
         existing_features_path = Path(existing_features)
         if existing_features_path.exists():
-            print(f"기존 피처 파일을 로드하여 segmentid 기준으로 테이블을 필터링합니다: {existing_features}")
+            print(f"Loading existing feature file and filtering table by segmentid: {existing_features}")
             existing_feature_df = pd.read_parquet(existing_features_path)
             existing_segmentids = existing_feature_df['segmentid'].values
             
-            # 원본 테이블에서 해당 segmentid와 일치하는 샘플만 추출
+            # Extract only samples matching the segmentids from the original table
             table = table[table['segmentid'].isin(existing_segmentids)].reset_index(drop=True)
-            print(f"필터링된 테이블 크기: {len(table)}")
+            print(f"Filtered table size: {len(table)}")
         else:
-            print(f"경고: 지정된 피처 파일이 존재하지 않습니다: {existing_features}")
+            print(f"Warning: specified feature file does not exist: {existing_features}")
     
     if sample_size is not None: 
         table = table.sample(n=sample_size).reset_index(drop=True)

@@ -1,13 +1,13 @@
 """
-One-vs-Rest 단일 모델 학습 및 단일 모델 추론.
+One-vs-Rest single model training and inference.
 
-1. Normal vs Others 학습
+1. Normal vs Others training
    python finetuning_ovr.py --cuda_visible_devices 0 --binary_type nl_vs_others
 
-2. Neuropathy vs Others 학습
+2. Neuropathy vs Others training
    python finetuning_ovr.py --cuda_visible_devices 1 --binary_type n_vs_others
 
-3. Myopathy vs Others 학습
+3. Myopathy vs Others training
    python finetuning_ovr.py --cuda_visible_devices 2 --binary_type m_vs_others
 """
 
@@ -101,9 +101,9 @@ def get_args():
 
     with open(args.pretrained_config_path, 'r') as f:
         pretrained_cfg = yaml.safe_load(f)
-        # 기존 args에 pretrained config 병합 (기존 값이 우선)
+        # Merge pretrained config into existing args (existing values take priority)
         for k, v in pretrained_cfg.items():
-            if not hasattr(args, k):  # 기존에 없는 키만 추가
+            if not hasattr(args, k):  # Only add keys not already present
                 setattr(args, k, v)
     return args
 

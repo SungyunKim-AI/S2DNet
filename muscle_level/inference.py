@@ -1,5 +1,5 @@
 """
-학습된 3개 One-vs-Rest 단일 모델을 이용한 앙상블 추론.
+Ensemble inference using 3 trained One-vs-Rest individual models.
 """
 
 import os
@@ -67,7 +67,7 @@ def load_ovr_model(ckpt_path, device):
 
 @torch.no_grad()
 def ensemble_inference(args, dataloader, device, output_dir):
-    """3개 one-vs-others 모델을 앙상블하여 최종 3-class 예측"""
+    """Ensemble 3 one-vs-others models to produce final 3-class prediction"""
     model_nl = load_ovr_model(args.model_nl_vs_others_path, device)
     model_n = load_ovr_model(args.model_n_vs_others_path, device)
     model_m = load_ovr_model(args.model_m_vs_others_path, device)
@@ -113,7 +113,7 @@ def ensemble_inference(args, dataloader, device, output_dir):
             loss = criterion(final_proba, target)
 
         total_loss += loss.item()
-        # 데이터별로 output_nl[:,1], output_n[:,1], output_m[:,1], target 수집 (CSV 저장용)
+        # Collect output_nl[:,1], output_n[:,1], output_m[:,1], target per sample (for CSV saving)
         batch_size = target.size(0)
         onl1 = output_nl[:, 1].cpu().float().numpy()
         on1 = output_n[:, 1].cpu().float().numpy()
@@ -154,7 +154,7 @@ def ensemble_inference(args, dataloader, device, output_dir):
     df_csv.to_csv(csv_path, index=False)
     print(f"Per-sample outputs and targets saved to {csv_path} ({len(df_csv)} rows)")
 
-    # 라벨+proba 저장 → 나중에 모델 재추론 없이 ROC curve 등 시각화 가능
+    # Save labels+probabilities → enables visualization (e.g., ROC curve) later without re-running the model
     df_keys = pd.DataFrame(all_group_keys)
     roc_data_path = os.path.join(output_dir, "ensemble_labels_and_proba.parquet")
     df_keys.to_parquet(roc_data_path, index=False)

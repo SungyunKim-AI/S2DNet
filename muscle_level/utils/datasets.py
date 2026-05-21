@@ -42,7 +42,7 @@ class PretrainDataset(Dataset):
         return signal, mean, std
 
     def _get_data_dict(self, data_time):
-        """공통 데이터 처리 로직을 별도 메서드로 분리"""
+        """Separate common data processing logic into its own method"""
         data_freq = fft.fft(data_time).abs()
         data_freq, _, _ = normalize_and_get_stats(data_freq)
         
@@ -88,7 +88,7 @@ class FinetuneDataset(PretrainDataset):
         self.bag_size = bag_size
         self.return_norm_factors = return_norm_factors
         
-        # pid, visit_date, muscle_index로 그룹화
+        # Group by pid, visit_date, muscle_index
         self.grouped = self.meta_data.groupby(['pid', 'visit_date', 'muscle_index'])
         self.group_keys = list(self.grouped.groups.keys())
     
@@ -113,11 +113,11 @@ class FinetuneDataset(PretrainDataset):
             data_freq = self._get_data_dict(data_time)['freq']
             data_freq_bag.append(data_freq)
 
-            # numpy 값을 torch tensor로 변환
+            # Convert numpy values to torch tensors
             mean_bag.append(torch.tensor(mean, dtype=torch.float))
             std_bag.append(torch.tensor(std, dtype=torch.float))
         
-        # 패딩 (50개 미만인 경우)
+        # Padding (when fewer than bag_size samples)
         if actual_size < self.bag_size:
             pad_size = self.bag_size - actual_size
             zero_time = torch.zeros_like(data_time_bag[0])
@@ -152,7 +152,7 @@ class FinetuneDataset(PretrainDataset):
 
 
 class FinetuneDataset_ovr(FinetuneDataset):
-    """앙상블용 이진 분류를 위한 FinetuneDataset (one-vs-others 방식)"""
+    """FinetuneDataset for binary classification in ensemble mode (one-vs-others approach)"""
     
     def __init__(self, meta_file, bag_size=50, return_norm_factors=False, binary_type='0_vs_others'):
         """
@@ -161,7 +161,7 @@ class FinetuneDataset_ovr(FinetuneDataset):
         super(FinetuneDataset_ovr, self).__init__(meta_file, bag_size, return_norm_factors)
         self.binary_type = binary_type
         
-        # binary_type에 따라 라벨 매핑: 대상 클래스=1(positive), 나머지=0
+        # Map labels according to binary_type: target class=1 (positive), others=0
         self.valid_labels = ['nl', 'n', 'm']
         if binary_type == 'nl_vs_others':
             self.label_map = {'nl': 1, 'n': 0, 'm': 0}
@@ -172,7 +172,7 @@ class FinetuneDataset_ovr(FinetuneDataset):
         self._filter_data()
     
     def _filter_data(self):
-        """binary_type에 따라 데이터 필터링"""
+        """Filter data according to binary_type"""
         self.meta_data = self.meta_data[self.meta_data['label'].isin(self.valid_labels)].reset_index(drop=True)
         self.grouped = self.meta_data.groupby(['pid', 'visit_date', 'muscle_index'])
         self.group_keys = list(self.grouped.groups.keys())
@@ -198,7 +198,7 @@ class FinetuneDataset_ovr(FinetuneDataset):
             mean_bag.append(torch.tensor(mean, dtype=torch.float))
             std_bag.append(torch.tensor(std, dtype=torch.float))
         
-        # 패딩 (50개 미만인 경우)
+        # Padding (when fewer than bag_size samples)
         if actual_size < self.bag_size:
             pad_size = self.bag_size - actual_size
             zero_time = torch.zeros_like(data_time_bag[0])

@@ -35,7 +35,7 @@ def save_muscle_data(output_file, muscle_data):
 
 @ray.remote
 def process_single_objectid(objectid, meta_data, save_dir):
-    """단일 objectid를 처리하는 함수"""
+    """Process a single objectid"""
     try:
         object_table = meta_data[meta_data['objectid']==objectid].copy()
         object_table.sort_values('segment_index', inplace=True)
@@ -50,7 +50,7 @@ def process_single_objectid(objectid, meta_data, save_dir):
 
         muscle_data = []
         
-        # h5 파일을 한 번만 열어서 모든 segment 처리
+        # Open h5 file once to process all segments
         with h5py.File(file_path, 'r') as source_f:
             segment_group = object_table.groupby('segment_index')
             for segment_index, segment_table in segment_group:
@@ -59,7 +59,7 @@ def process_single_objectid(objectid, meta_data, save_dir):
                 segment_table.sort_values('trace_index', inplace=True)
                 segment_table.reset_index(drop=True, inplace=True)
                 
-                # segment signal 읽기
+                # Read segment signal
                 signal_list = []
                 for i, row in segment_table.iterrows():
                     signal = source_f[f"emg/muscle_{muscle_index}/segment_{row['trace_index']}/signal"][()]
@@ -82,7 +82,7 @@ def process_single_objectid(objectid, meta_data, save_dir):
                 }
                 muscle_data.append(segment_data)
         
-        # 모든 segment 처리 완료 후 한 번에 저장
+        # Save all at once after all segments are processed
         save_muscle_data(str(output_file), muscle_data)
 
         filtered_muscle_data = [
@@ -105,7 +105,7 @@ def plot_random_segments(save_dir, segment_meta_data, num_samples=500):
         muscle_index = row['muscle_index']
         segment_index = row['segment_index']
 
-        # h5 파일에서 signal 읽기
+        # Read signal from h5 file
         try:
             with h5py.File(file_path, 'r') as f:
                 signal = f[f"emg/muscle_{muscle_index}/segment_{segment_index}/signal"][()]
@@ -128,7 +128,7 @@ def plot_random_segments(save_dir, segment_meta_data, num_samples=500):
             plt.savefig(save_path / f"{segmentid}.png", dpi=300, bbox_inches='tight')
             plt.close()
 
-    print(f"{len(sampled)}개의 segment plot이 {save_dir}에 저장되었습니다.")
+    print(f"{len(sampled)} segment plots saved to {save_dir}.")
 
 
 

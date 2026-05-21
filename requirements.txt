@@ -1,0 +1,25 @@
+# Deep learning
+torch>=2.0.0
+einops
+
+# Data processing
+numpy
+pandas
+scipy
+scikit-learn
+h5py
+joblib
+pyarrow          # parquet read/write
+
+# Distributed / parallel processing
+ray
+pyspark
+
+# Visualization
+matplotlib
+
+# Utilities
+tqdm
+click
+pyyaml
+tensorboard
