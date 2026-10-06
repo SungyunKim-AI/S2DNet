@@ -54,9 +54,9 @@ def get_args():
     parser.add_argument('--exp_name', type=str, default="BimodalMAE_backbone")
     parser.add_argument('--output_dir', type=str, default='outputs/pretrain')
     parser.add_argument('--meta_file_path_train', type=str, 
-                        default='/home/coder/workspace/data/BMI_nEMG/data/preprocessed/seg_400_meta_data_train.parquet')
+                        default='./data/preprocessed/seg_400_meta_data_train.parquet')
     parser.add_argument('--meta_file_path_valid', type=str, 
-                        default='/home/coder/workspace/data/BMI_nEMG/data/preprocessed/seg_400_meta_data_valid.parquet')
+                        default='./data/preprocessed/seg_400_meta_data_valid.parquet')
     parser.add_argument('--seq_len', type=int, default=3840, help='Sequence length')
     parser.add_argument('--patch_size', type=int, default=16, help='Patch size')
     parser.add_argument('--mask_ratio_t', type=float, default=0.5, help='Mask ratio for time domain')

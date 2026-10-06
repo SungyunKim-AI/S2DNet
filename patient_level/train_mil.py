@@ -26,9 +26,9 @@ def parse_args():
     parser = argparse.ArgumentParser(description='Train Gated Attention MIL Model')
     
     # Data paths
-    parser.add_argument('--train_data', type=str, default='/home/coder/workspace/data/BMI_nEMG/3_patient-level_clf/data/BimodalMAE_train_embed.parquet',
+    parser.add_argument('--train_data', type=str, default='./data/BimodalMAE_train_embed.parquet',
                         help='Training data path (parquet file)')
-    parser.add_argument('--valid_data', type=str, default='/home/coder/workspace/data/BMI_nEMG/3_patient-level_clf/data/BimodalMAE_valid_embed.parquet',
+    parser.add_argument('--valid_data', type=str, default='./data/BimodalMAE_valid_embed.parquet',
                         help='Validation data path (parquet file)')
     
     # Model configuration

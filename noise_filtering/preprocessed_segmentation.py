@@ -133,8 +133,8 @@ def plot_random_segments(save_dir, segment_meta_data, num_samples=500):
 
 
 @click.command()
-@click.option('--meta_data_path', type=str, default="/home/coder/workspace/data/BMI_nEMG/data/preprocessed/seg_400_meta_data.parquet", help='meta data path')
-@click.option('--save-dir', type=str, default="/home/coder/workspace/data/BMI_nEMG/data/preprocessed/seg_400_h5", help='save directory')
+@click.option('--meta_data_path', type=str, default="./data/preprocessed/seg_400_meta_data.parquet", help='meta data path')
+@click.option('--save-dir', type=str, default="./data/preprocessed/seg_400_h5", help='save directory')
 def main(meta_data_path, save_dir):
     save_dir = Path(save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
@@ -143,10 +143,10 @@ def main(meta_data_path, save_dir):
 
         ray.init(
             num_cpus=70,
-            _temp_dir="/home/coder/workspace/data/ray_temp"
+            _temp_dir="./data/ray_temp"
         )
         
-        meta_data = pd.read_parquet("/home/coder/workspace/data/BMI_nEMG/0_preprocessing/noise_filtering/outputs_v2/nosie_filtered_meta_data_400.parquet")
+        meta_data = pd.read_parquet("./data/noise_filtered/noise_filtered_meta_data_400.parquet")
         meta_data['objectid'] = meta_data['pid'].astype(str) + '_' \
                                 + meta_data['visit_date'].astype(str) + '_' \
                                 + meta_data['muscle_index'].astype(str)
@@ -176,7 +176,7 @@ def main(meta_data_path, save_dir):
         segment_meta_data = pd.DataFrame(total_results)
         segment_meta_data = segment_meta_data.sort_values(['pid', 'visit_date', 'muscle_index', 'segment_index'])
         segment_meta_data.reset_index(drop=True, inplace=True)
-        segment_meta_data.to_parquet("/home/coder/workspace/data/BMI_nEMG/data/preprocessed/seg_400_meta_data.parquet", index=False)
+        segment_meta_data.to_parquet("./data/preprocessed/seg_400_meta_data.parquet", index=False)
         print(f"Total segments created: {len(segment_meta_data)}")
         print(segment_meta_data)
 

@@ -208,10 +208,10 @@ def main(cache_dir, sample_size, step, existing_features):
     # Initialize Ray
     ray.init(
         num_cpus=50,
-        _temp_dir="/home/coder/workspace/data/ray_temp",
+        _temp_dir="./data/ray_temp",
     )
 
-    table = pd.read_parquet("/home/coder/workspace/data/BMI_nEMG/data/noise_filtered/clustering_meta_data.parquet")
+    table = pd.read_parquet("./data/noise_filtered/clustering_meta_data.parquet")
     
     # If an existing feature file is present, filter table by its segmentids
     if existing_features is not None:

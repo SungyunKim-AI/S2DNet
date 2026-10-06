@@ -114,7 +114,7 @@ class ClusteringDataset(Dataset):
 
 
 if __name__ == "__main__":
-    table = pd.read_parquet("/home/coder/workspace/data/BMI_nEMG/data/volition/clustering_meta_data.parquet")
+    table = pd.read_parquet("./data/noise_filtered/clustering_meta_data.parquet")
     dataset = ClusteringDataset(table, inputs=[[{"signal":{"axis":["C","T"]}}]], targets=None)
     
     segmentid, signals = dataset[0]

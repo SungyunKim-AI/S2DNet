@@ -8,8 +8,8 @@ import scipy.signal as scipy_signal
 import ray
 
 np.random.seed(42)
-DATA_DIR = Path("/home/coder/workspace/data/BMI_nEMG/data/raw/subject_h5")
-SAVE_DIR = Path("/home/coder/workspace/data/BMI_nEMG/data/noise_filtered/clustering_h5")
+DATA_DIR = Path("./data/raw/subject_h5")
+SAVE_DIR = Path("./data/noise_filtered/clustering_h5")
 
 
 def read_total_signal(file_path, muscle_index, trace_table):
@@ -116,10 +116,10 @@ def process_single_objectid(objectid, meta_data, save_dir):
 def main(sample_size):
     ray.init(
         num_cpus=50,
-        _temp_dir="/home/coder/workspace/data/ray_temp"
+        _temp_dir="./data/ray_temp"
     )
     
-    meta_data = pd.read_parquet("/home/coder/workspace/data/BMI_nEMG/data/raw/subject_h5/filtered_meta_data.parquet")
+    meta_data = pd.read_parquet("./data/raw/subject_h5/filtered_meta_data.parquet")
     meta_data = meta_data[meta_data['sampling_rate'] == 9600]
     meta_data = meta_data[meta_data['duration'] == 0.1]
     meta_data = meta_data[meta_data['notch_filter'] == 60]
@@ -166,7 +166,7 @@ def main(sample_size):
     segment_meta_data = pd.DataFrame(total_results)
     segment_meta_data = segment_meta_data.sort_values(['pid', 'visit_date', 'muscle_index', 'segment_index'])
     segment_meta_data.reset_index(drop=True, inplace=True)
-    segment_meta_data.to_parquet("/home/coder/workspace/data/BMI_nEMG/data/noise_filtered/clustering_meta_data.parquet", index=False)
+    segment_meta_data.to_parquet("./data/noise_filtered/clustering_meta_data.parquet", index=False)
     print(f"Total segments created: {len(segment_meta_data)}")
     print(segment_meta_data)
 
